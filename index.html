@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>T&amp;S Vendor Finder</title>
+<style>
+  :root {
+    --bg: #D6E9FC; --navy: #131F5B; --panel: #fff; --ink: #1d2330; --muted: #667085; --line: #e3e6eb;
+    --accent: #3b5bdb; --accent-soft: #edf1ff; --hit: #2b8a3e; --hit-soft: #e9f7ec;
+    --miss: #868e96; --miss-soft: #f1f3f5; --warn: #b35c00; --warn-soft: #fff4e6;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+         background: var(--bg); color: var(--ink); font-size: 14px; line-height: 1.45; }
+  header { padding: 16px 28px; background: var(--navy); color: #fff; display: flex; align-items: center; gap: 24px; }
+  header .logo { height: 48px; flex: none; }
+  header h1 { margin: 0 0 4px; font-size: 20px; }
+  header p { margin: 0; color: rgba(255,255,255,.8); }
+  main { display: grid; grid-template-columns: 400px 1fr; gap: 20px; padding: 20px 28px; align-items: start; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+
+  /* ---------- Filters ---------- */
+  #filters { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 0 16px 16px;
+             position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; }
+  .filters-top { display: flex; justify-content: space-between; align-items: center; margin: 0 -16px 8px;
+                 padding: 12px 16px; background: var(--navy); color: #fff; position: sticky; top: 0; z-index: 1; }
+  .filters-top h2 { font-size: 15px; margin: 0; }
+  .filters-top .btn { background: transparent; color: #fff; border-color: rgba(255,255,255,.5); }
+  .filters-top .btn:hover { background: rgba(255,255,255,.15); }
+  button { font: inherit; cursor: pointer; }
+  .btn { border: 1px solid var(--line); background: #fff; border-radius: 6px; padding: 5px 10px; }
+  .btn:hover { background: var(--miss-soft); }
+  .group-title { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+                 color: var(--accent); margin: 18px 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--line); }
+  .field { margin-bottom: 10px; }
+  .field-head { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+  .field-head label { font-weight: 600; font-size: 13px; }
+  .info-btn { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--accent); color: var(--accent);
+              background: #fff; font-size: 11px; font-weight: 700; line-height: 1; padding: 0; }
+  .info-btn[aria-expanded="true"] { background: var(--accent); color: #fff; }
+  .info { display: none; background: var(--accent-soft); border-radius: 6px; padding: 8px 10px; margin-bottom: 6px;
+          font-size: 12.5px; }
+  .info.open { display: block; }
+  .info ul { margin: 6px 0 0; padding-left: 18px; }
+  .info li { margin: 2px 0; }
+  select { width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: #fff; font: inherit; }
+  select.set { border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+  .detects-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .detects-grid .field { margin: 0; }
+  .detects-grid label { font-weight: 500; font-size: 12.5px; }
+
+  /* ---------- Results ---------- */
+  #results-wrap { min-width: 0; }
+  .results-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+  .results-top h2 { margin: 0; font-size: 17px; }
+  .toggle { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .toggle button { border: 0; background: #fff; padding: 5px 12px; }
+  .toggle button.on { background: var(--accent); color: #fff; }
+  .banner { border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; }
+  .banner.ok { background: var(--hit-soft); color: var(--hit); border: 1px solid #b2dfbc; }
+  .banner.warn { background: var(--warn-soft); color: var(--warn); border: 1px solid #ffd8a8; }
+  .banner.empty { background: var(--panel); color: var(--muted); border: 1px dashed var(--line); text-align: center; padding: 40px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin-bottom: 12px; }
+  .card-head { display: flex; gap: 14px; align-items: flex-start; }
+  .rank { flex: none; width: 34px; height: 34px; border-radius: 50%; background: var(--accent); color: #fff;
+          display: grid; place-items: center; font-weight: 700; }
+  .card-title { flex: 1; min-width: 0; }
+  .card-title h3 { margin: 0; font-size: 16px; }
+  .card-title a { color: var(--accent); font-size: 12.5px; text-decoration: none; word-break: break-all; }
+  .section-tag { display: inline-block; font-size: 11px; color: var(--muted); background: var(--miss-soft);
+                 border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: middle; }
+  .score { flex: none; text-align: right; min-width: 110px; }
+  .score b { font-size: 18px; }
+  .score small { display: block; color: var(--muted); }
+  .bar { height: 6px; background: var(--miss-soft); border-radius: 3px; margin-top: 4px; overflow: hidden; }
+  .bar span { display: block; height: 100%; background: var(--hit); }
+  .summary { margin: 12px 0 10px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font-size: 12px; border-radius: 12px; padding: 2px 9px; }
+  .chip.hit { background: var(--hit-soft); color: var(--hit); }
+  .chip.miss { background: var(--miss-soft); color: var(--miss); }
+  details { margin-top: 10px; }
+  summary { cursor: pointer; color: var(--accent); font-size: 12.5px; }
+  table.profile { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12.5px; }
+  table.profile td { border-top: 1px solid var(--line); padding: 4px 6px; vertical-align: top; }
+  table.profile td:first-child { color: var(--muted); width: 40%; }
+  .tied { color: var(--muted); font-size: 13px; margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<header>
+  <img class="logo" src="data:image/png;base64,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" alt="Tremau">
+  <div>
+  <h1>Trust &amp; Safety Vendor Finder</h1>
+  <p>Pick the requirements you care about and leave the rest blank. Each requirement you fill in is worth +1, and vendors are ranked by how many they match.</p>
+  </div>
+</header>
+
+<main>
+  <aside id="filters">
+    <div class="filters-top">
+      <h2>Requirements</h2>
+      <button class="btn" id="reset">Reset all</button>
+    </div>
+    <div id="filter-form"></div>
+  </aside>
+
+  <section id="results-wrap">
+    <div class="results-top">
+      <h2 id="results-title">Best-fit vendors</h2>
+      <div class="toggle" id="topn">
+        <button data-n="3">Top 3</button><button data-n="5" class="on">Top 5</button>
+      </div>
+    </div>
+    <div id="results"></div>
+  </section>
+</main>
+
+<script>
+/* =====================================================================
+   FIELD DEFINITIONS (from the matrix legend)
+   - options: selectable values. v = value stored in company data,
+     l = label shown (defaults to v), d = short explanation.
+   - implies: a company value that also satisfies other selections,
+     e.g. a "Both" product shape counts as a hit for "Standalone tool".
+   ===================================================================== */
+const YPN = [
+  { v: "Yes", d: "full support" },
+  { v: "Partial", d: "at least partial support (vendors with full support also count)" },
+  { v: "No", d: "does not handle this" }
+];
+const YPN_IMPLIES = { "Yes": ["Partial"] };
+
+const FIELDS = [
+  // ---- COMPANY INFO ----
+  { key: "cat", group: "Company info", label: "Main Category",
+    what: "The best-fit high-level category for this company. Many vendors sit in more than one category.",
+    options: ["Content moderation", "Deepfake detection", "Child safety", "Fraud & identity", "Policy & compliance",
+              "Academic integrity", "Pre-generation security", "Orchestration", "Other"].map(v => ({ v })) },
+  { key: "shape", group: "Company info", label: "Product Shape",
+    what: "Is it a bare detection tool, a full platform, or both?",
+    options: [{ v: "Standalone tool", d: "a bare detection tool / API" },
+              { v: "Broader platform", d: "a full platform (workflows, dashboards, other products)" },
+              { v: "Both", d: "offers a standalone tool and a broader platform" }],
+    implies: { "Both": ["Standalone tool", "Broader platform"] } },
+  { key: "pricing", group: "Company info", label: "Pricing Published?",
+    what: "Is a real price ever shown without a sales call?",
+    options: [{ v: "Yes", d: "a price is published" }, { v: "Quote only", d: "you have to contact sales" },
+              { v: "Free tier", d: "there is a free tier or free usage" }] },
+
+  // ---- POLICY & SPECIALIZATION ----
+  { key: "policy", group: "Policy & specialization", label: "Policy-Based vs Fixed Taxonomy",
+    what: "Can the customer define their own policy in plain language, or is the taxonomy fixed by the vendor?",
+    options: [{ v: "Policy-based", d: "you write or configure your own policy" },
+              { v: "Fixed taxonomy", d: "the vendor's categories are fixed" },
+              { v: "Both", d: "offers both modes" },
+              { v: "N/A", d: "not a moderation tool" }],
+    implies: { "Both": ["Policy-based", "Fixed taxonomy"] } },
+  { key: "spec", group: "Policy & specialization", label: "Specialized vs Generalized",
+    what: "Does the company do one detection job well, or orchestrate/cover many?",
+    options: [{ v: "Specialized", d: "does one detection job deeply" },
+              { v: "Generalized", d: "covers many jobs / orchestration platform" }] },
+  { key: "vert", group: "Policy & specialization", label: "Vertical vs Horizontal",
+    what: "A deep fit for one industry/use case (vertical) vs industry-agnostic (horizontal).",
+    options: [{ v: "Vertical", d: "deep fit for one industry" }, { v: "Horizontal", d: "industry-agnostic" }] },
+
+  // ---- CONTENT TYPE COVERAGE ----
+  { key: "text",  group: "Content type coverage", label: "Text",  detects: true, options: YPN, implies: YPN_IMPLIES },
+  { key: "image", group: "Content type coverage", label: "Image", detects: true, options: YPN, implies: YPN_IMPLIES },
+  { key: "video", group: "Content type coverage", label: "Video", detects: true, options: YPN, implies: YPN_IMPLIES },
+  { key: "audio", group: "Content type coverage", label: "Audio / Voice", detects: true, options: YPN, implies: YPN_IMPLIES },
+  { key: "code",  group: "Content type coverage", label: "Code",  detects: true, options: YPN, implies: YPN_IMPLIES },
+  { key: "ling", group: "Content type coverage", label: "Text: Linguistic / Slang / Obfuscation Depth",
+    what: "For text detectors only: does it handle slang, coded language, symbols and deliberate obfuscation, not just literal keyword matching?",
+    options: [{ v: "Yes", d: "handles slang, algospeak, obfuscation" }, { v: "No", d: "no depth claimed or disclosed" },
+              { v: "N/A", d: "doesn't detect natural-language text" }] },
+
+  // ---- BEHAVIORAL / ADAPTABILITY ----
+  { key: "behav", group: "Behavioral / adaptability", label: "Behavioral / Account-Level Analysis",
+    what: "Does it look at the user, account or network over time, not just one piece of content?",
+    options: YPN, implies: YPN_IMPLIES },
+  { key: "adapt", group: "Behavioral / adaptability", label: "Adaptability Type",
+    what: "How the model changes (or doesn't) after deployment.",
+    options: [{ v: "Supervised-adaptive", d: "learns from moderator decisions" },
+              { v: "Static/pretrained", d: "no feedback loop" },
+              { v: "Unsupervised", d: "clusters behavior without labels" }] },
+
+  // ---- DETECTION MECHANISM ----
+  { key: "mech", group: "Detection mechanism", label: "Detection Mechanism",
+    what: "The core technical approach. Hybrid vendors also count as a hit for each component they combine (e.g. LLM + ML classifier).",
+    options: [{ v: "LLM-based" }, { v: "ML classifier" }, { v: "Hybrid", d: "combines several approaches" },
+              { v: "Watermark or provenance" }, { v: "Rule-based (symbolic)" }, { v: "Hash/fingerprint matching" }] },
+  { key: "phil", group: "Detection mechanism", label: "Detection Philosophy",
+    what: "Matching a known reference vs. classifying new content vs. parsing language/rules.",
+    options: [{ v: "Matching", l: "Matching (known-content lookup)", d: "finds content that is already known to be bad" },
+              { v: "Classifying", l: "Classifying (learned generalization)", d: "judges new, unseen content" },
+              { v: "Parsing", l: "Parsing (rule-based/symbolic)", d: "applies deterministic rules / grammar" }] },
+
+  // ---- NETWORK & LIFECYCLE ----
+  { key: "network", group: "Network & lifecycle", label: "Network Effect",
+    what: "Does the vendor pool signal across its whole customer base (gets smarter with scale), or is each deployment siloed?",
+    options: [{ v: "Network effect", d: "compounding / shared intelligence" }, { v: "Siloed", d: "each customer is separate" }] },
+  { key: "life", group: "Network & lifecycle", label: "Content Lifecycle Stage",
+    what: "Where in the content's life the detection happens.",
+    options: [{ v: "Preventive", l: "Preventive (pre-generation)", d: "stops content before it is produced" },
+              { v: "Pre-publish", l: "Reactive – pre-publish / inline", d: "screens at upload or in real time" },
+              { v: "Post-hoc", l: "Reactive – post-hoc", d: "screens already-live content / investigation" },
+              { v: "Upstream gating", l: "Upstream gating (signup/login)", d: "screens users before they post anything" },
+              { v: "Enforcement only", d: "orchestration and enforcement, no detection of its own" }] },
+  { key: "custom", group: "Network & lifecycle", label: "Model Customization",
+    what: "Does each customer get genuinely different model weights, or does everyone share one model/taxonomy?",
+    options: [{ v: "Customer-specific", l: "Fine-tuned / customer-specific model", d: "your own weights or trained models" },
+              { v: "Policy-configurable", l: "Shared model, customer-configurable policy/rules", d: "same weights, but you define the policy or rules" },
+              { v: "Shared model", l: "Shared model, fixed taxonomy", d: "everyone gets the same thing" }] },
+  { key: "pdf", group: "Network & lifecycle", label: "PDF Accepted?",
+    what: "Does the vendor natively accept PDF as a moderation input?",
+    options: [{ v: "Yes", d: "native PDF input" },
+              { v: "Indirect", d: "OCR or image conversion required (native-PDF vendors also count)" },
+              { v: "No" }],
+    implies: { "Yes": ["Indirect"] } },
+
+  // ---- INDUSTRY & SPECIALTY ----
+  { key: "industry", group: "Industry & specialty", label: "General Industry",
+    what: "The vendor's primary commercial context: who they built the product for.",
+    options: ["T&S native", "UGC-adjacent", "Cybersecurity", "AI infrastructure", "Other"].map(v => ({ v })) },
+  { key: "specialty", group: "Industry & specialty", label: "Specialty (if UGC/T&S-native)",
+    what: "For T&S-native and UGC-adjacent vendors: which vertical the vendor fits most deeply. N/A for cybersecurity and AI-infrastructure vendors.",
+    options: ["Gaming", "Social media", "Marketplaces & e-commerce", "Dating", "Child safety", "Financial services",
+              "Government & law enforcement", "AI apps & chatbots", "Media & journalism", "Contact centres", "N/A"].map(v => ({ v })) }
+];
+
+const DETECTS_WHAT = "Does the product detect/moderate this content type at all? Choose only the content types you need.";
+
+/* =====================================================================
+   COMPANY DATA (from company matrix.pdf)
+   ===================================================================== */
+const T1 = "Tier 1 – Core content moderation", T23 = "Tier 2/3 – Content moderation",
+      FR = "Fraud, behavioral & deepfake/voice", AN = "Anonymization & abuse signal",
+      CY = "Cybersecurity / URL & network intel", CS = "Code scanners (AI/LLM security)";
+
+const COMPANIES = [
+  // ---------------- TIER 1 ----------------
+  { name: "Bodyguard", url: "https://bodyguard.ai", section: T1,
+    summary: "Context-first content moderation platform covering text, image, and video across 38+ languages, with native code-switching handling. Hybrid AI + human linguist model. Strength is linguistic nuance (slang, irony, emojis, cultural context) across 45+ languages. Adds Audience Intelligence layer turning moderation data into sentiment/consumer insights. Weakness: no behavioral/account-level detection.",
+    cat: ["Content moderation"], shape: "Both", pricing: "Quote only", industry: "T&S native",
+    specialty: ["Social media", "Gaming", "Dating", "Media & journalism"], policy: "Fixed taxonomy", spec: "Specialized", vert: "Horizontal",
+    text: "Yes", image: "Yes", video: "Yes", audio: "No", code: "No", ling: "Yes", behav: "No",
+    adapt: "Supervised-adaptive", mech: ["Hybrid", "LLM-based", "ML classifier", "Rule-based (symbolic)"], phil: "Classifying",
+    network: "Siloed", life: "Pre-publish", custom: "Shared model", pdf: "No" },
+
+  { name: "Sightengine", url: "https://sightengine.com", section: T1,
+    summary: "Pure-play API-first content detection platform. 120+ detection classes across image, video, audio, and text, with fine-grained sub-classes (e.g. reject lingerie but accept bikinis). Bootstrapped, no VC. Transparent self-serve pricing with free tier. No adaptive learning loop, no workflow/human-review product, no named case studies. Best suited to engineering teams building their own stack.",
+    cat: ["Content moderation"], shape: "Both", pricing: ["Yes", "Free tier"], industry: "T&S native",
+    specialty: ["Marketplaces & e-commerce", "Social media"], policy: "Fixed taxonomy", spec: "Specialized", vert: "Horizontal",
+    text: "Yes", image: "Yes", video: "Yes", audio: "Yes", code: "No", ling: "No", behav: "No",
+    adapt: "Static/pretrained", mech: "ML classifier", phil: "Classifying",
+    network: "Siloed", life: "Pre-publish", custom: ["Shared model", "Customer-specific"], pdf: "No" },
+
+  { name: "Musubi", url: "https://musubilabs.ai", section: T1,
+    summary: "Most AI-native and adaptive T&S platform in the set. Human-in-the-loop learning loop: AiMod watches moderators and automates 70-90% of decisions. Assesses whole accounts, not just individual posts. Policy-as-code: operators write policies in plain language; LLM enforces exactly those rules. Every decision returns policy, reasoning, severity, confidence. Built by ex-Grindr/OkCupid T&S leaders. Requires upfront setup cost.",
+    cat: ["Content moderation"], shape: "Both", pricing: "Quote only", industry: "T&S native",
+    specialty: ["Social media", "Dating", "Gaming"], policy: "Policy-based", spec: "Specialized", vert: "Horizontal",
+    text: "Yes", image: "Yes", video: "Yes", audio: "Yes", code: "No", ling: "Yes", behav: "Yes",
+    adapt: "Supervised-adaptive", mech: ["Hybrid", "ML classifier", "LLM-based"], phil: "Classifying",
+    network: "Siloed", life: "Pre-publish", custom: "Customer-specific", pdf: "Yes" },
+
+  { name: "Google Cloud Vision", url: "https://cloud.google.com/vision", section: T1,
+    summary: "General-purpose computer vision infrastructure, not a T&S product. SafeSearch feature flags adult, spoof, medical, violence, racy content with 5-level likelihood ratings. No policy configurability, no CSAM classifier, no case management, no human review workflow. Cheap at volume (pay-per-call). Best suited to engineering teams needing a raw 'is this explicit' signal, not trust & safety compliance.",
+    cat: ["Other"], shape: "Broader platform", pricing: ["Yes", "Free tier"], industry: "AI infrastructure",
+    specialty: "N/A", policy: "Fixed taxonomy", spec: "Generalized", vert: "Horizontal",
+    text: "Partial", image: "Yes", video: "Yes", audio: "No", code: "No", ling: "No", behav: "No",
+    adapt: "Static/pretrained", mech: "ML classifier", phil: "Classifying",
+    network: "Siloed", life: "Pre-publish", custom: "Shared model", pdf: "Indirect" },
+
+  { name: "Hive", url: "https://thehive.ai", section: T1,
+    summary: "Broad content-understanding portfolio — moderation, deepfake detection, brand protection, ad-tech, and generation APIs — processed billions of pieces of content monthly for hundreds of companies. Trained on consensus-validated data from 2.5M+ contributors across 100+ countries. ML-classifier-first, now layered with multimodal VLM. Government contracts (DoD/DIU). Weakness: no adaptive learning loop, costs climb at consumer scale.",
+    cat: ["Content moderation", "Deepfake detection", "Child safety"], shape: "Both", pricing: ["Yes", "Free tier", "Quote only"], industry: "T&S native",
+    specialty: ["Social media", "Gaming", "Government & law enforcement"], policy: "Fixed taxonomy", spec: "Generalized", vert: "Horizontal",
+    text: "Yes", image: "Yes", video: "Yes", audio: "Yes", code: "No", ling: "No", behav: "No",
+    adapt: "Static/pretrained", mech: ["Hybrid", "ML classifier", "LLM-based"], phil: "Classifying",
+    network: "Network effect", life: ["Pre-publish", "Post-hoc"], custom: ["Shared model", "Customer-specific"], pdf: "No" },
+
+  { name: "Unitary", url: "https://unitary.ai", section: T1,
+    summary: "Pivoted from moderation vendor to AI-powered BPO replacement ('Virtual Agents'). Now automates ops workflows across marketplaces, insurance, financial services, and healthcare — content moderation is one workflow type. Outcome-based pricing (pay once results delivered). Video-first moderation heritage (contextual multimodal). Open-source Detoxify text classifier (fine-tuned BERT/RoBERTa) is free and widely cited.",
+    cat: ["Content moderation", "Other"], shape: "Broader platform", pricing: "Quote only", industry: "UGC-adjacent",
+    specialty: ["Marketplaces & e-commerce", "Financial services"], policy: "Both", spec: "Generalized", vert: "Horizontal",
+    text: "Yes", image: "Yes", video: "Yes", audio: "No", code: "No", ling: "No", behav: "No",
+    adapt: "Supervised-adaptive", mech: "ML classifier", phil: "Classifying",
+    network: "Siloed", life: "Pre-publish", custom: "Policy-configurable", pdf: "No" },
+
+  { name: "Moonbounce", url: "https://moonbounce.ai", section: T1,
+    summary: "LLM-based policy enforcement engine ('semantic firewall') for AI applications and agents. Ships 60+ pre-built policies; operators author custom policies in natural language. Distinctive feature: 'decision memory' — human corrections stored as precedent, scoped to policy, future evaluations weigh precedent + written rules. Positioning shifted from UGC T&S to any team shipping an LLM-powered product. CSAM partner (NCMEC). Pre-generation moderation use case.",
+    cat: ["Content moderation", "Policy & compliance", "Pre-generation security", "Other"], shape: "Broader platform", pricing: ["Yes", "Free tier"],
+    industry: ["T&S native", "AI infrastructure"], specialty: ["Dating", "AI apps & chatbots", "Gaming"], policy: "Policy-based", spec: "Specialized", vert: "Horizontal",
+    text: "Yes", image: "Yes", video: "Yes", audio: "No", code: "No", ling: "No", behav: "No",
+    adapt: "Supervised-adaptive", mech: "LLM-based", phil: "Classifying",
+    network: "Siloed", life: "Preventive", custom: "Policy-configurable", pdf: "No" },
+
+  { name: "SafetyKit", url: "https://safetykit.com", section: T1,
+    summary: "High-touch enterprise T&S platform for large marketplaces and payment platforms. Evaluates whole user across every action (behavioral/user-level, not just item-level). AI agents learn what good/bad behavior looks like on a given platform. Modular: Content Moderation + AI Operations/investigations. Named clients include Patreon, Substack, Etsy, Discord. Case studies show $1M+/year savings vs manual review and >95% accuracy vs 80% human baseline.",
+    cat: ["Content moderation", "Fraud & identity", "Policy & compliance", "Child safety"], shape: "Broader platform", pricing: "Quote only", industry: "T&S native",
+    specialty: ["Marketplaces & e-commerce", "Social media"], policy: "Policy-based", spec: "Generalized", vert: "Horizontal",
+    text: "Yes", image: "Yes", video: "Yes", audio: "Yes", code: "No", ling: "Yes", behav: "Yes",
+    adapt: "Supervised-adaptive", mech: ["Hybrid", "LLM-based", "ML classifier"], phil: "Classifying",
+    network: "Siloed", life: ["Pre-publish", "Post-hoc"], custom: "Customer-specific", pdf: "No" },
+
+  { name: "Modulate", url: "https://modulate.ai", section: T1,
+    summary: "Audio-native voice intelligence platform — gaming T&S origin, expanding to contact centres and fraud. Ensemble Listening Model (ELM): multiple specialized audio ML models dynamically routed, not a single LLM. Core products: ToxMod (gaming voice moderation) and Velma API (deepfake detection, transcription, redaction, triage). #1 Hugging Face Deepfake Audio Arena. 30-1000x cheaper than LLM alternatives per their own benchmarks. Never trains on customer audio.",
+    cat: ["Content moderation", "Deepfake detection", "Fraud & identity"], shape: "Both", pricing: ["Yes", "Free tier", "Quote only"], industry: "T&S native",
+    specialty: ["Gaming", "Contact centres"], policy: "Policy-based", spec: "Specialized", vert: ["Vertical", "Horizontal"],
+    text: "Partial", image: "No", video: "No", audio: "Yes", code: "No", ling: "No", behav: "No",
+    adapt: "Supervised-adaptive", mech: ["Hybrid", "ML classifier"], phil: "Classifying",
+    network: "Siloed", life: "Pre-publish", custom: "Customer-specific", pdf: "No" },
+
+  { name: "Amazon Rekognition (AWS)", url: "https://aws.amazon.com/rekognition/", section: T1,
+    summary: "Hyperscaler moderation feature, not a dedicated T&S vendor. Fixed 3-level hierarchical taxonomy (L1/L2/L3 labels). Sub-cent-per-image at volume. No CSAM-specific classifier, no deepfake detection, no audio, no behavioral/account layer. AWS-centric integration (IAM/S3/SDK). Optional Custom Moderation adapters allow fine-tuning on ≥20 customer-labeled images. Note: Streaming Video Analysis and Batch features discontinued April 30 2026; confirm current availability before relying.",
+    cat: ["Content moderation", "Other"], shape: "Both", pricing: ["Yes", "Free tier"], industry: "AI infrastructure",
+    specialty: "N/A", policy: "Fixed taxonomy", spec: "Generalized", vert: "Horizontal",
+    text: "Partial", image: "Yes", video: "Partial", audio: "No", code: "No", ling: "No", behav: "No",
+    adapt: "Static/pretrained", mech: "ML classifier", phil: "Classifying",
+    network: "Siloed", life: "Pre-publish", custom: ["Shared model", "Customer-specific"], pdf: "Indirect" },
+
+  { name: "OpenAI (Moderation API)", url: "https://openai.com", section: T1,
+    summary: "Free moderation utility endpoint inside OpenAI's GPT platform — not a monetized product. omni-moderation-latest (GPT-4o-based, multimodal: text + image). Fixed 11-category taxonomy; cannot be redefined at inference time. Zero cost, does not count against API quota. Rate-limited. OpenAI explicitly cautions against auto-blocking. No behavioral/account detection. No deepfake, CSAM, or fraud products under Moderation API.",
+    cat: ["Content moderation"], shape: "Broader platform", pricing: ["Yes", "Free tier"], industry: "AI infrastructure",
+    specialty: "N/A", policy: "Fixed taxonomy", spec: "Generalized", vert: "Horizontal",
+    text: "Yes", image: "Yes", video: "No", audio: "No", code: "No", ling: "No", behav: "No",
+    adapt: "Static/pretrained", mech: "LLM-based", phil: "Classifying",
+    network: "Siloed", life: "Pre-publish", custom: "Shared model", pdf: "Indirect" },
+
+  { name: "Videntifier", url: "https://videntifier.com", section: T1,
+    summary: "Known-content matcher (not a classifier): visual fingerprint matching at billion-scale using patented NV-Tree algorithm. Catches re-circulated harmful content even when modified (re-encoded, cropped, watermarked, rotated). Current harm categories: CSAM/CSEM and TVEC only. Extremely cheap (€100/month). NCMEC uses Videntifier internally. Peer-reviewed architecture (IEEE TPAMI, ACM ICMR). Cannot detect novel content.",
+    cat: ["Content moderation", "Child safety"], shape: "Both", pricing: "Yes", industry: "T&S native",
+    specialty: ["Child safety", "Government & law enforcement"], policy: "Fixed taxonomy", spec: "Specialized", vert: "Vertical",
+    text: "No", image: "Yes", video: "Yes", audio: "No", code: "No", ling: "N/A", behav: "No",
+    adapt: "Static/pretrained", mech: ["Hash/fingerprint matching", "Watermark or provenance"], phil: "Matching",
+    network: "Network effect", life: "Post-hoc", custom: "Shared model", pdf: "No" },
+
+  { name: "Safer by Thorn", url: "https://safer.io", section: T1,
+    summary: "Single-issue CSAM/CSE specialist by nonprofit Thorn. Hybrid: hash matching (known CSAM) + ML classifiers (novel/unreported CSAM, CSE text). Explicitly trains on confirmed NCMEC CyberTipline data including benign edge cases. Hive resells Thorn's technology. Growing 43% annually. Three tiers: Essential (API), Safer Match (hash), Safer Enterprise (full platform with review UI + NCMEC/RCMP reporting). Available on AWS Marketplace.",
+    cat: ["Child safety"], shape: "Both", pricing: "Yes", industry: "T&S native",
+    specialty: "Child safety", policy: "Fixed taxonomy", spec: "Specialized", vert: "Vertical",
+    text: "Yes", image: "Yes", video: "Yes", audio: "No", code: "No", ling: "No", behav: "No",
+    adapt: "Static/pretrained", mech: ["Hybrid", "Hash/fingerprint matching", "ML classifier"], phil: ["Matching", "Classifying"],
+    network: "Network effect", life: ["Pre-publish", "Post-hoc"], custom: "Shared model", pdf: "No" },
+
+  { name: "Mistral", url: "https://mistral.ai", section: T1,
+    summary: "Frontier AI model company (GPT/Claude equivalent). Moderation is a small free add-on, not its business. Two products: Moderation API (hosted, text-only, 9 fixed categories, Ministral 8B-based, free) and Shieldstral 1.0 (open-weight, Apache 2.0, 3B params, multimodal text+image, self-hosted only, policy-at-inference-time — operator supplies natural-language yes/no policy). No CSAM, deepfake, or fraud tools. Series D: $3B Sep 2026.",
+    cat: ["Content moderation", "Policy & compliance"], shape: "Both", pricing: ["Yes", "Free tier"], industry: "AI infrastructure",
+    specialty: "N/A", policy: "Both", spec: "Generalized", vert: "Horizontal",
+    text: "Yes", image: "Partial", video: "No", audio: "No", code: "No", ling: "No", behav: "No",
+    adapt: "Static/pretrained", mech: "LLM-based", phil: "Classifying",
+    network: "Siloed", life: "Pre-publish", custom: ["Policy-configurable", "Shared model"], pdf: "Indirect" },
+
+  // ---------------- TIER 2/3 ----------------
+  { name: "Tisane", url: "https://tisane.ai", section: T23,
+    summary: "Pure-play NLP/text specialist — rule-based/symbolic linguistic engine, not deep learning. Explicitly deterministic ('same input → same output'). Core differentiator: algospeak/adversarial-text handling (character substitution, asterisking, obfuscation, control characters). 30+ languages with built-in dirty-language translation. Text-only. Three deployment modes: SaaS API, on-prem, embedded. Bootstrapped, Singapore-based. Integrated into Tremau's Nima platform. Named clients: Slack, Minecraft, Discord, Webex.",
+    cat: ["Content moderation", "Policy & compliance"], shape: "Both", pricing: ["Yes", "Free tier"], industry: "T&S native",
+    specialty: ["Social media", "Gaming"], policy: "Fixed taxonomy", spec: "Specialized", vert: "Horizontal",
+    text: "Yes", image: "No", video: "No", audio: "No", code: "No", ling: "Yes", behav: "No",
+    adapt: "Static/pretrained", mech: "Rule-based (symbolic)", phil: "Parsing",
+    network: "Siloed", life: "Pre-publish", custom: "Shared model", pdf: "No" },
+
+  { name: "Moderering", url: "https://moderering.com", section: T23,
+    summary: "Very early-stage (4 people, founded 2024) French startup built entirely around DSA compliance and European digital sovereignty. Multi-agent architecture: one specialised AI agent per risk type. Free access for EU government agencies until Sep 2026. Pricing published (unlimited monthly/annual subscription). No named clients or case studies. Not a credible near-term large-scale vendor, but a directional signal for European regulatory-native moderation. Incubated at Agoranov, supported by Bpifrance.",
+    cat: ["Content moderation", "Policy & compliance", "Child safety", "Deepfake detection"], shape: "Both", pricing: "Yes", industry: "T&S native",
+    specialty: "Government & law enforcement", policy: "Fixed taxonomy", spec: "Specialized", vert: "Vertical",
+    text: "Yes", image: "Yes", video: "Yes", audio: "No", code: "No", ling: "No", behav: "No",
+    adapt: "Supervised-adaptive", mech: ["Hybrid", "LLM-based"], phil: "Classifying",
+    network: "Siloed", life: "Pre-publish", custom: [], pdf: "No" },
+
+  { name: "utopia.ai", url: "https://utopia.ai", section: T23,
+    summary: "Contact centre AI automation platform — not a content moderation or deepfake detection company. Products: Sesame (voice biometric ID + fraud prevention + sentiment analysis for call centres), ToT (level-1 support ticket automation), Loquista (TTS/voice cloning/synthesis), Whodas (employee activity supervision), CRM (AI-enhanced). Only overlap with detection space: Sesame's voice biometric fraud prevention (caller identity verification, not synthetic audio detection). Small unfunded company. Peripheral relevance as voice synthesis provider to monitor.",
+    cat: ["Fraud & identity", "Other"], shape: "Broader platform", pricing: "Quote only", industry: "Other",
+    specialty: ["Financial services", "Contact centres"], policy: "N/A", spec: "Specialized", vert: "Vertical",
+    text: "No", image: "No", video: "No", audio: "Yes", code: "No", ling: "N/A", behav: "No",
+    adapt: "Static/pretrained", mech: "ML classifier", phil: "Classifying",
+    network: "Siloed", life: "Pre-publish", custom: [], pdf: "No" },
+
+  { name: "Stealcut", url: "https://stealcut.com", section: T23,
+    summary: "South Korean deepfake detection + prevention startup (founded 2024, Seoul). Two products: Detect (ML-based image/video authenticity scoring with heatmap; 95.2% overall accuracy, 92.8% fake detection, 99.0% real detection) and Protect (adversarial noise embedding into source images to block synthesis — patented, no other vendor offers this). SelectUSA Champion. Five patents. Chrome extension + web app + REST API. Available on AWS Marketplace. Named clients: Seoul National University, SBS (Korean broadcaster). Very early-stage, Korea-first.",
+    cat: ["Deepfake detection", "Content moderation", "Policy & compliance"], shape: "Both", pricing: "Yes", industry: "T&S native",
+    specialty: ["Media & journalism", "Social media"], policy: "Fixed taxonomy", spec: "Specialized", vert: "Horizontal",
+    text: "No", image: "Yes", video: "Yes", audio: "No", code: "No", ling: "N/A", behav: "No",
+    adapt: "Static/pretrained", mech: ["Hybrid", "ML classifier", "Watermark or provenance"], phil: ["Classifying", "Matching"],
+    network: "Siloed", life: ["Preventive", "Post-hoc"], custom: [], pdf: "Yes" },
+
+  { name: "Arwen", url: "https://arwen.ai", section: T23,
+    summary: "Social media comment moderation platform for brands (Facebook, Instagram, X, TikTok, YouTube). Not a platform-agnostic API — you buy the full brand community management suite. Four products: Moderate (spam/toxicity removal, 30+ languages), Engage (buyer intent/questions detection), Signals (role-specific recommendations), Protect (threat/impersonation/high-risk escalation). Builds bespoke brand-specific classifiers. Named clients: Hinge, Mercedes AMG F1, Fulham FC, FIA. 70% toxic comment reduction claimed (Mercedes AMG).",
+    cat: ["Content moderation"], shape: "Both", pricing: "Quote only", industry: "T&S native",
+    specialty: "Social media", policy: "Fixed taxonomy", spec: "Specialized", vert: "Vertical",
+    text: "Yes", image: "Yes", video: "No", audio: "No", code: "No", ling: "Yes", behav: "Partial",
+    adapt: "Supervised-adaptive", mech: ["Hybrid", "LLM-based", "ML classifier", "Rule-based (symbolic)"], phil: "Classifying",
+    network: "Siloed", life: "Pre-publish", custom: "Customer-specific", pdf: "No" },
+
+  { name: "web-IQ", url: "https://web-iq.com", section: T23,
+    summary: "Law enforcement intelligence platform (OSINT) with one component relevant to commercial content moderation: the Hash Check Service (HCS) — CSAM hash-matching API performing billions of checks/year, free for EU hosting companies (Dutch government funded). The rest of Voyager (darknet crawling, entity resolution, knowledge graph, Telegram/Signal monitoring, semantic image search, geolocation extraction) is built for LEA investigators, not moderation pipelines. Netherlands-based, founded 2011, $2.21M total raised (EU grants). Quote only.",
+    cat: ["Child safety", "Fraud & identity", "Policy & compliance"], shape: "Broader platform", pricing: "Quote only", industry: "Cybersecurity",
+    specialty: ["Government & law enforcement", "Child safety"], policy: "Fixed taxonomy", spec: "Specialized", vert: "Vertical",
+    text: "Yes", image: "Yes", video: "Yes", audio: "No", code: "No", ling: "No", behav: "No",
+    adapt: "Static/pretrained", mech: ["Hybrid", "Hash/fingerprint matching", "ML classifier"], phil: ["Matching", "Classifying"],
+    network: "Network effect", life: ["Post-hoc", "Pre-publish"], custom: [], pdf: "No" },
+
+  { name: "Zentropi", url: "https://zentropi.ai", section: T23,
+    summary: "Policy-adaptive content classifier built at Stanford/Harvard — CoPE (COntent Policy Evaluator) model family. Operators write policies in plain language; the model enforces exactly those rules without retraining. Open-weight models on Hugging Face (Apache 2.0: cope-a-9b, cope-b-a4b). Hosted platform (zentropi.ai) for no-code policy authoring. Sub-200ms on a single consumer GPU; roughly 1% of GPT-4o parameter count. Free Community Edition. Named clients: Character.ai, Runway, Koko. Integrated into ROOST Coop. Published arXiv paper (arXiv:2512.18027). Very small team (<10), no disclosed funding round.",
+    cat: ["Content moderation", "Policy & compliance", "Child safety"], shape: "Both", pricing: ["Yes", "Free tier", "Quote only"], industry: "T&S native",
+    specialty: ["Social media", "AI apps & chatbots"], policy: "Policy-based", spec: "Specialized", vert: "Horizontal",
+    text: "Yes", image: "Partial", video: "Partial", audio: "No", code: "No", ling: "No", behav: "No",
+    adapt: "Supervised-adaptive", mech: "LLM-based", phil: "Classifying",
+    network: "Siloed", life: "Pre-publish", custom: "Policy-configurable", pdf: "No" },
+
+  // ---------------- FRAUD, BEHAVIORAL, DEEPFAKE / VOICE ----------------
+  { name: "DataVisor", url: "https://datavisor.com", section: FR,
+    summary: "AI fraud and risk management for financial institutions — unsupervised ML that catches novel fraud rings before any labeled examples exist. Patented algorithms cluster behavior without requiring training labels. Structured as Financial Crime Solutions (Fraud/AML/FRAML) + Platform Capabilities (Unified Signal Intelligence, Cross-Entity Link Analysis, AI Detection Engine, AI Decisioning). Now focused on fintech/banking; pivoted away from UGC marketplace use cases.",
+    cat: ["Fraud & identity", "Policy & compliance"], shape: "Broader platform", pricing: "Quote only", industry: "UGC-adjacent",
+    specialty: "Financial services", policy: "Fixed taxonomy", spec: "Specialized", vert: "Vertical",
+    text: "Partial", image: "No", video: "No", audio: "No", code: "No", ling: "N/A", behav: "Yes",
+    adapt: "Unsupervised", mech: ["Hybrid", "ML classifier"], phil: "Classifying",
+    network: "Network effect", life: "Pre-publish", custom: [], pdf: "No" },
+
+  { name: "Pasabi (Themis)", url: "https://pasabi.com", section: FR,
+    summary: "Behavior-based fraud detection for marketplace and review fraud — acquired by Themis Oct 2025. Philosophy: 'behavior over content'; clusters accounts into fraud rings rather than classifying individual posts. Cross-platform bad-actor repository. Key use cases: fake reviews, counterfeit listings, review broker networks, romance scams. Named client: Trustpilot. Post-acquisition now part of broader Themis financial crime platform (AML/CFT, KYC, AI Investigator LLM).",
+    cat: ["Fraud & identity"], shape: "Standalone tool", pricing: "Quote only", industry: "UGC-adjacent",
+    specialty: "Marketplaces & e-commerce", policy: "Fixed taxonomy", spec: "Specialized", vert: "Vertical",
+    text: "Partial", image: "No", video: "No", audio: "No", code: "No", ling: "N/A", behav: "Yes",
+    adapt: "Unsupervised", mech: "ML classifier", phil: "Classifying",
+    network: "Network effect", life: "Post-hoc", custom: [], pdf: "No" },
+
+  { name: "SEON", url: "https://seon.io", section: FR,
+    summary: "API-first digital fraud prevention — builds a digital footprint per user (900-1,100+ first-party signals: device fingerprint, email/phone/social/IP reputation) and layers explainable ML on top. Best for catching fake accounts at signup/onboarding before content is posted. Four pillars: Fraud Prevention, Identity & KYC, AML & Compliance, Platform. Series C: $80M Sep 2025 led by Sixth Street Growth. Named clients: Revolut, Plaid, Nubank, Afterpay, Spotify.",
+    cat: ["Fraud & identity", "Policy & compliance"], shape: "Broader platform", pricing: ["Yes", "Quote only"], industry: "UGC-adjacent",
+    specialty: ["Financial services", "Gaming"], policy: "Fixed taxonomy", spec: "Generalized", vert: "Horizontal",
+    text: "Partial", image: "No", video: "No", audio: "No", code: "No", ling: "N/A", behav: "Yes",
+    adapt: "Supervised-adaptive", mech: ["Hybrid", "ML classifier", "Rule-based (symbolic)"], phil: "Classifying",
+    network: "Siloed", life: "Upstream gating", custom: "Policy-configurable", pdf: "No" },
+
+  { name: "Castle", url: "https://castle.io", section: FR,
+    summary: "Developer-first account abuse and risk scoring API for consumer apps. Account Abuse Score (0-100) for fake accounts/multi-accounting/account sharing; separate Account Takeover Score. 99.5% device fingerprinting accuracy (vendor-stated). Self-learning behavioral models on device, IP, ISP, event-velocity. Up to 18 months historical data. Last raised: Series A Feb 2019 ($9.2M, Index Ventures). ~54 employees. No content classification capability.",
+    cat: ["Fraud & identity"], shape: "Standalone tool", pricing: ["Yes", "Free tier"], industry: "UGC-adjacent",
+    specialty: ["Marketplaces & e-commerce", "Financial services"], policy: "Fixed taxonomy", spec: "Specialized", vert: "Horizontal",
+    text: "Partial", image: "No", video: "No", audio: "No", code: "No", ling: "N/A", behav: "Yes",
+    adapt: "Supervised-adaptive", mech: "ML classifier", phil: "Classifying",
+    network: "Siloed", life: ["Upstream gating", "Post-hoc"], custom: "Customer-specific", pdf: "No" },
+
+  { name: "TrustLab (ModAI)", url: "https://trustlab.com", section: FR,
+    summary: "T&S platform by ex-Google/YouTube/TikTok/Reddit T&S leaders. Two products: ModAI (hybrid AI+human content classification for text/image/video) and DetectAI (proactive off-platform threat intelligence with identity stitching across burned/farmed accounts). Explicitly addresses grooming/predatory behavior and coordinated inauthentic networks. DSA/UK OSA/Australian OSA compliance reporting built in. Series A: $15M Jun 2023.",
+    cat: ["Content moderation", "Child safety", "Fraud & identity", "Policy & compliance"], shape: "Broader platform", pricing: "Quote only", industry: "T&S native",
+    specialty: ["Social media", "Marketplaces & e-commerce"], policy: "Policy-based", spec: "Specialized", vert: "Vertical",
+    text: "Yes", image: "Yes", video: "Yes", audio: "No", code: "No", ling: "No", behav: "Yes",
+    adapt: "Supervised-adaptive", mech: ["Hybrid", "LLM-based", "ML classifier"], phil: "Classifying",
+    network: "Network effect", life: ["Preventive", "Pre-publish"], custom: "Customer-specific", pdf: "No" },
+
+  { name: "Besedo (Implio)", url: "https://besedo.com", section: FR,
+    summary: "Hybrid AI + human content moderation for marketplaces, classifieds, and dating — with explicit fraud focus. Implio platform: AI routes to OK/NOK/Uncertain; uncertain items go to human moderators. BLANG custom rule engine; Smart Lists image-similarity for scammer image reuse. Sub-50ms average response. Language-mismatch fraud detection (123 languages). Humans handle all video/audio. 20+ years marketplace expertise. Free 14-day trial.",
+    cat: ["Content moderation", "Fraud & identity"], shape: "Broader platform", pricing: "Quote only", industry: "T&S native",
+    specialty: ["Marketplaces & e-commerce", "Dating"], policy: "Policy-based", spec: "Specialized", vert: "Vertical",
+    text: "Yes", image: "Yes", video: "Partial", audio: "Partial", code: "No", ling: "No", behav: "No",
+    adapt: "Supervised-adaptive", mech: ["Hybrid", "ML classifier", "Rule-based (symbolic)", "Hash/fingerprint matching"], phil: ["Classifying", "Matching"],
+    network: "Siloed", life: "Pre-publish", custom: ["Customer-specific", "Policy-configurable"], pdf: "No" },
+
+  { name: "Checkstep", url: "https://checkstep.com", section: FR,
+    summary: "Multimodal content moderation (text/image/video/audio/GIFs/livestreams) across 100+ languages with a strong DSA/UK Online Safety Act compliance-reporting angle. Integrates from the AI marketplace (GPT4.1-mini, Resolver Athena for CSAM, custom models). Direct API integration with EU Commission for automated DSA reporting. Policy engine for managing queues by region/regulation/harm. Setup fee + volume tiers + operator seat pricing. No in-house human review workforce (refers to BPO partners).",
+    cat: ["Content moderation", "Policy & compliance", "Child safety"], shape: "Broader platform", pricing: "Quote only", industry: "T&S native",
+    specialty: ["Social media", "Gaming", "Marketplaces & e-commerce"], policy: "Policy-based", spec: "Specialized", vert: "Horizontal",
+    text: "Yes", image: "Yes", video: "Yes", audio: "Partial", code: "No", ling: "No", behav: "No",
+    adapt: "Static/pretrained", mech: ["Hybrid", "ML classifier", "LLM-based", "Hash/fingerprint matching"], phil: ["Classifying", "Matching"],
+    network: "Siloed", life: "Pre-publish", custom: "Policy-configurable", pdf: "Indirect" },
+
+  { name: "Deepgram", url: "https://deepgram.com", section: FR,
+    summary: "Real-time and batch speech-to-text API for voice agent pipelines and contact centres. No bundled content moderation — raw transcript output only. Key products: Nova-3 (STT, 5.26% WER), Flux (conversational voice agent STT with native end-of-turn detection, ~260ms p50). Best-in-class latency for real-time voice agents. Self-hosted at same pricing (Kubernetes, AWS ECS, bare-metal, GovCloud). SOC 2 Type 2, HIPAA BAA.",
+    cat: ["Other"], shape: "Both", pricing: "Yes", industry: "AI infrastructure",
+    specialty: "N/A", policy: "N/A", spec: "Specialized", vert: "Horizontal",
+    text: "No", image: "No", video: "No", audio: "Yes", code: "No", ling: "No", behav: "No",
+    adapt: "Static/pretrained", mech: "ML classifier", phil: [],
+    network: "Siloed", life: [], custom: "Customer-specific", pdf: "No" },
+
+  { name: "AssemblyAI", url: "https://assemblyai.com", section: FR,
+    summary: "Speech-to-text API with bundled audio intelligence — content moderation (Guardrails), PII redaction, sentiment, topic detection (LeMUR/Speech Understanding API) all in one API call. Universal-3.5 Pro: lowest entity error rate on voice-agent suite. Guardrails: hate speech, violence, sensitive topics, PII redaction (50+ categories) at STT latency. LeMUR powered by Claude Sonnet 4. Self-hosted at same pricing. HIPAA BAA on all tiers. 12.5M+ hours training data.",
+    cat: ["Content moderation", "Policy & compliance"], shape: "Broader platform", pricing: ["Yes", "Free tier"], industry: "AI infrastructure",
+    specialty: "N/A", policy: "Both", spec: "Generalized", vert: "Horizontal",
+    text: "Yes", image: "No", video: "No", audio: "Yes", code: "No", ling: "No", behav: "No",
+    adapt: "Static/pretrained", mech: ["Hybrid", "ML classifier", "LLM-based"], phil: "Classifying",
+    network: "Siloed", life: "Pre-publish", custom: ["Shared model", "Policy-configurable"], pdf: "No" },
+
+  { name: "Resemble AI", url: "https://www.resemble.ai/detect/", section: FR,
+    summary: "Multimodal deepfake detection platform built by a voice synthesis company — insider knowledge of generation artifacts. DETECT-World (3rd gen world model: physical consistency checks + artifact detection; zero-day updates). Ranked #1 Podonos benchmark for audio. Products: Resemble Detect API, Intelligence (forensic explainability), Meetings (live Zoom/Teams/Meet/Webex), PerTh Watermarker (EU AI Act Article 50 compliant), Signal API (fraud/scam scoring), Identify API. SOC 2/GDPR/HIPAA. On-prem available.",
+    cat: ["Deepfake detection", "Content moderation", "Policy & compliance"], shape: "Broader platform", pricing: ["Yes", "Free tier", "Quote only"], industry: "T&S native",
+    specialty: ["Social media", "Media & journalism"], policy: "Fixed taxonomy", spec: "Specialized", vert: "Horizontal",
+    text: "No", image: "Yes", video: "Yes", audio: "Yes", code: "No", ling: "N/A", behav: "No",
+    adapt: "Static/pretrained", mech: ["Hybrid", "ML classifier", "Watermark or provenance"], phil: "Classifying",
+    network: "Siloed", life: "Pre-publish", custom: "Shared model", pdf: "No" },
+
+  { name: "Reality Defender", url: "https://realitydefender.com", section: FR,
+    summary: "Enterprise multimodal deepfake detection — Gartner Market Shaper Jun 2026, JPMorganChase Hall of Innovation 2025, WEF Technology Pioneer 2025. Patented hybrid ensemble (multiple independently trained CNNs + Transformers + Vision Transformers cross-validate). Four deployment surfaces: RealScan (drag-and-drop), RealAPI (SDKs: Python/TypeScript/Go/Rust/Java), RealCall (live contact centre voice deepfake), RealMeeting (Zoom/Teams/Meet/Webex plugins). On-prem/air-gapped/SOC 2/GDPR/HIPAA.",
+    cat: ["Deepfake detection", "Fraud & identity", "Content moderation"], shape: "Broader platform", pricing: ["Yes", "Free tier", "Quote only"], industry: "T&S native",
+    specialty: ["Financial services", "Government & law enforcement", "Media & journalism"], policy: "Fixed taxonomy", spec: "Specialized", vert: "Horizontal",
+    text: "Partial", image: "Yes", video: "Yes", audio: "Yes", code: "No", ling: "No", behav: "No",
+    adapt: "Static/pretrained", mech: ["Hybrid", "ML classifier"], phil: "Classifying",
+    network: "Siloed", life: "Pre-publish", custom: "Shared model", pdf: "No" },
+
+  { name: "Sensity AI", url: "https://sensity.ai", section: FR,
+    summary: "Forensic-grade deepfake detection and visual threat intelligence — built for court-admissible evidence, law enforcement, and regulated identity verification. Multilayer detection (pixel, file structure, metadata, audio signals). Court-ready forensic reports in 30+ languages with analyst certification programme. NIST Computer Forensics Tools & Techniques Catalog (Jul 2026). 98% accuracy on public datasets. Air-gapped USB dongle deployment. Threat intelligence unit for proactive monitoring of new deepfake campaigns.",
+    cat: ["Deepfake detection", "Fraud & identity", "Child safety", "Content moderation"], shape: "Broader platform", pricing: "Quote only", industry: "T&S native",
+    specialty: ["Government & law enforcement", "Financial services"], policy: "Fixed taxonomy", spec: "Specialized", vert: "Vertical",
+    text: "No", image: "Yes", video: "Yes", audio: "Yes", code: "No", ling: "N/A", behav: "No",
+    adapt: "Static/pretrained", mech: ["Hybrid", "ML classifier"], phil: "Classifying",
+    network: "Siloed", life: ["Pre-publish", "Post-hoc"], custom: "Shared model", pdf: "No" },
+
+  // ---------------- ANONYMIZATION & ABUSE SIGNAL ----------------
+  { name: "Spur", url: "https://spur.us", section: AN,
+    summary: "IP intelligence for anonymization detection — identifies VPN, residential proxy, mobile gateway, and bot farm traffic in real time. Built by ex-DoD engineers (founded 2017). $200M Insight Partners round Jul 2026 after 9 years bootstrapped (~40 employees). ~60M active suspect IPs classified daily; 230M+ unique anonymized IPs per 90-day window; 1,000+ VPN/proxy services monitored. Three products: Context API (per-IP enrichment, 20+ attributes), Monocle (session-level browser/login risk), Data Feeds (on-prem bulk). Upstream signal only — tells you where traffic originates, not what content is posted.",
+    cat: ["Fraud & identity", "Policy & compliance"], shape: "Broader platform", pricing: ["Yes", "Free tier", "Quote only"], industry: "Cybersecurity",
+    specialty: "N/A", policy: "Fixed taxonomy", spec: "Specialized", vert: "Horizontal",
+    text: "No", image: "No", video: "No", audio: "No", code: "No", ling: "N/A", behav: "No",
+    adapt: "Static/pretrained", mech: "Watermark or provenance", phil: "Matching",
+    network: "Network effect", life: "Upstream gating", custom: [], pdf: "No" },
+
+  { name: "Rupt", url: "https://rupt.dev", section: AN,
+    summary: "Unified account + text content moderation for consumer SaaS. Device intelligence (ML) + LLM-based text moderation in one evaluation call — verdict lands on the account, not just the post. 14 text content categories (child safety, harassment, hate, scam, phishing, malicious code, sexual, self-harm, violence etc.) with severity/confidence/evidence quote. Account sharing detection is core commercial insight (revenue recovery, not just enforcement). Pre-Seed, 4 employees. 100ms p99 latency, 99.99% uptime.",
+    cat: ["Fraud & identity", "Content moderation"], shape: "Broader platform", pricing: "Yes", industry: "UGC-adjacent",
+    specialty: "Marketplaces & e-commerce", policy: "Fixed taxonomy", spec: "Specialized", vert: "Vertical",
+    text: "Yes", image: "No", video: "No", audio: "No", code: "No", ling: "No", behav: "Yes",
+    adapt: "Supervised-adaptive", mech: ["Hybrid", "ML classifier", "LLM-based"], phil: "Classifying",
+    network: "Siloed", life: "Pre-publish", custom: "Policy-configurable", pdf: "No" },
+
+  { name: "Osprey (ROOST)", url: "https://roost.tools/osprey", section: AN,
+    summary: "Open-source trust & safety infrastructure from nonprofit ROOST. Two tools: Osprey (rules engine + investigation; Discord-donated; used by Bluesky/AT Protocol) and Coop (human-in-the-loop review console; built on Cove IP). Free and self-hostable. DIRE framework: Detection-Investigation-Review-Enforcement. NCMEC API + Google Content Safety API (CSAM) + OpenAI Moderation API integrated into Coop. Osprey: SML rule language + Kafka event streaming + external classifier endpoints. No SLA.",
+    cat: ["Content moderation", "Child safety", "Policy & compliance", "Orchestration"], shape: "Both", pricing: ["Yes", "Free tier"], industry: "T&S native",
+    specialty: ["Social media", "Gaming"], policy: "Policy-based", spec: "Generalized", vert: "Horizontal",
+    text: "Yes", image: "Partial", video: "Partial", audio: "No", code: "No", ling: "No", behav: "Yes",
+    adapt: "Static/pretrained", mech: ["Hybrid", "Rule-based (symbolic)", "ML classifier", "LLM-based"], phil: ["Parsing", "Classifying"],
+    network: "Network effect", life: ["Pre-publish", "Post-hoc", "Enforcement only"], custom: "Policy-configurable", pdf: "No" },
+
+  // ---------------- CYBERSECURITY / URL & NETWORK ----------------
+  { name: "IPQualityScore", url: "https://ipqualityscore.com", section: CY,
+    summary: "Multi-signal fraud detection and threat intelligence API platform — URL/phishing scanning, device fingerprinting, dark web credential monitoring, and account-level fraud scoring in one API relationship. Core infrastructure: proprietary honeypot network + Fortune 500 consortium data (Fraud Fusion). Fraud Scores 0-100 per IP/email/phone/URL/device. On-prem IP reputation database option (daily/SFTP). Free tier: 1,000 lookups/month. Paid tiers from $99/mo. Most comprehensive fraud+URL bundle in this group — but no content classification capability whatsoever.",
+    cat: ["Fraud & identity", "Policy & compliance"], shape: "Broader platform", pricing: ["Yes", "Free tier", "Quote only"], industry: "Cybersecurity",
+    specialty: "N/A", policy: "Fixed taxonomy", spec: "Generalized", vert: "Horizontal",
+    text: "Partial", image: "No", video: "No", audio: "No", code: "No", ling: "N/A", behav: "Yes",
+    adapt: "Static/pretrained", mech: ["Hybrid", "ML classifier"], phil: ["Classifying", "Matching"],
+    network: "Network effect", life: ["Pre-publish", "Upstream gating"], custom: "Policy-configurable", pdf: "No" },
+
+  { name: "APIVoid", url: "https://apivoid.com", section: CY,
+    summary: "Developer-friendly threat intelligence API bundle — URL reputation (40+ blacklist engines), domain reputation, IP reputation (70+ blocklist services), redirect chain tracking (URL Status API), QR code IoC extraction. Simpler and cheaper than IPQS; no account-level fraud scoring or device fingerprinting. 30-day free trial, no credit card. Credit-based pricing ($20-$415/mo). Fresh live analysis on every call (no cached results). Best for lightweight URL screening in UGC pipelines.",
+    cat: ["Fraud & identity", "Policy & compliance"], shape: "Broader platform", pricing: ["Yes", "Free tier"], industry: "Cybersecurity",
+    specialty: "N/A", policy: "Fixed taxonomy", spec: "Specialized", vert: "Horizontal",
+    text: "Partial", image: "Partial", video: "No", audio: "No", code: "No", ling: "N/A", behav: "No",
+    adapt: "Static/pretrained", mech: ["Hybrid", "ML classifier"], phil: ["Classifying", "Matching"],
+    network: "Siloed", life: "Pre-publish", custom: "Shared model", pdf: "No" },
+
+  { name: "Google Safe Browsing / Web Risk", url: "https://safebrowsing.google.com/", section: CY,
+    summary: "Google's known-malicious URL and phishing list — most widely embedded URL safety signal in the world (Chrome, Firefox, Safari). Hash-based lookup (not ML/heuristic). v5: real-time mode + Global Cache of benign sites + Oblivious HTTP Gateway for IP privacy. Three client modes: real-time, local-list, no-storage. Zero false positives on confirmed threats; cannot catch novel/newly registered malicious domains until Google crawls them. Free (non-commercial) / Web Risk API (commercial: $0.50/1K lookups).",
+    cat: ["Fraud & identity", "Policy & compliance"], shape: "Both", pricing: ["Yes", "Free tier"], industry: "Cybersecurity",
+    specialty: "N/A", policy: "Fixed taxonomy", spec: "Specialized", vert: "Horizontal",
+    text: "Partial", image: "No", video: "No", audio: "No", code: "No", ling: "N/A", behav: "No",
+    adapt: "Static/pretrained", mech: ["Hash/fingerprint matching", "Watermark or provenance"], phil: "Matching",
+    network: "Network effect", life: "Pre-publish", custom: "Shared model", pdf: "No" },
+
+  { name: "VirusTotal", url: "https://virustotal.com", section: CY,
+    summary: "Multi-engine aggregation platform — submits URLs/files/domains/IPs to 70+ AV engines and URL/domain blocklisting services; returns aggregated verdicts. Reference standard for security analyst investigation, not real-time automated moderation. URL Scanning 2.0 (Aug 2026): headless browser execution, screenshots, JavaScript telemetry, historical snapshots. Best for post-hoc investigation of reported suspicious URLs, not inline UGC pipeline gating. Owned by Google/Chronicle.",
+    cat: ["Fraud & identity", "Policy & compliance"], shape: "Both", pricing: ["Yes", "Free tier", "Quote only"], industry: "Cybersecurity",
+    specialty: "N/A", policy: "Fixed taxonomy", spec: "Generalized", vert: "Horizontal",
+    text: "Partial", image: "No", video: "No", audio: "No", code: "Yes", ling: "N/A", behav: "No",
+    adapt: "Static/pretrained", mech: "Hybrid", phil: ["Classifying", "Matching"],
+    network: "Network effect", life: "Post-hoc", custom: "Policy-configurable", pdf: "Indirect" },
+
+  { name: "Criminal IP", url: "https://criminalip.io", section: CY,
+    summary: "South Korean AI-powered CTI search engine and API — daily global port scanning of internet-connected devices. Four URL scan modes: Quick (0.5-2s, cached), Lite (2-5s, partial live), Full (40s, full OSINT + PDF report), AI Phishing Scan (20s, live AI classification). DGA score is a key differentiator. Three products: CTI (threat intelligence search), ASM (attack surface management), FDS (fraud detection system). Possible APAC coverage advantage. Starter tier: $90/mo published.",
+    cat: ["Fraud & identity", "Policy & compliance"], shape: "Broader platform", pricing: ["Yes", "Quote only"], industry: "Cybersecurity",
+    specialty: "N/A", policy: "Fixed taxonomy", spec: "Specialized", vert: "Horizontal",
+    text: "Partial", image: "Partial", video: "No", audio: "No", code: "No", ling: "N/A", behav: "No",
+    adapt: "Static/pretrained", mech: ["Hybrid", "ML classifier"], phil: "Classifying",
+    network: "Network effect", life: ["Pre-publish", "Post-hoc"], custom: [], pdf: "No" },
+
+  // ---------------- CODE SCANNERS (AI / LLM SECURITY) ----------------
+  { name: "Check Point (Lakera)", url: "https://www.checkpoint.com/ai-security/", section: CS,
+    summary: "LLM-pipeline guardrails built on Lakera acquisition (completed Oct 2025). Check Point AI Guardrails (formerly Lakera Guard): single /v2/guard API screens every LLM input and output for prompt injection, jailbreaks, PII/secrets, and policy violations before the model sees or produces content. Core data moat: 80M+ adversarial prompts from Gandalf public red-teaming game (1M+ users, 100+ languages). Claims 98%+ detection, sub-50ms latency, <0.5% FPR. Configurable policy engine per project (detector categories, sensitivity L1-L4, custom detectors, allow/deny lists). Protects the generating platform — not a UGC moderation tool. Post-acquisition sits inside Check Point Infinity platform.",
+    cat: ["Policy & compliance", "Content moderation", "Fraud & identity", "Pre-generation security"], shape: "Broader platform", pricing: ["Yes", "Free tier", "Quote only"], industry: "Cybersecurity",
+    specialty: "N/A", policy: "Policy-based", spec: "Specialized", vert: "Horizontal",
+    text: "Yes", image: "No", video: "No", audio: "No", code: "Partial", ling: "Yes", behav: "No",
+    adapt: "Supervised-adaptive", mech: ["Hybrid", "ML classifier", "Rule-based (symbolic)"], phil: "Classifying",
+    network: "Network effect", life: "Preventive", custom: "Policy-configurable", pdf: "Indirect" },
+
+  { name: "Cisco AI Defense", url: "https://www.cisco.com/site/us/en/products/security/ai-defense/index.html", section: CS,
+    summary: "Enterprise AI security platform — governance, supply chain scanning, runtime guardrails, and agentic AI protection. Robust Intelligence acquisition contributed DNN-based intent classifier (conversational-native, multi-turn context). Open-source tools: DefenseClaw, Skill Scanner (F1 47.73%, Precision 99.16% on MaliciousSkillBench), MCP Scanner (YARA + LLM + Cisco Talos), AI BOM, IDE AI Security Scanner (VS Code). Not a UGC moderation tool. Best for teams needing runtime guardrails AND AI supply chain security.",
+    cat: ["Policy & compliance", "Content moderation", "Fraud & identity", "Pre-generation security"], shape: "Broader platform", pricing: ["Quote only", "Free tier"], industry: "Cybersecurity",
+    specialty: "N/A", policy: "Policy-based", spec: "Specialized", vert: "Horizontal",
+    text: "Yes", image: "No", video: "No", audio: "No", code: "Yes", ling: "No", behav: "No",
+    adapt: "Static/pretrained", mech: ["Hybrid", "ML classifier", "Rule-based (symbolic)", "LLM-based"], phil: ["Classifying", "Matching"],
+    network: "Network effect", life: ["Preventive", "Pre-publish"], custom: "Policy-configurable", pdf: "No" },
+
+  { name: "Palo Alto Networks (Prisma AIRS)", url: "https://www.paloaltonetworks.com/ai-security/prisma-airs", section: CS,
+    summary: "Most comprehensive AI security platform by module count — full lifecycle from model supply chain scanning to runtime guardrails and agentic governance. Protect AI acquisition ($650-700M, Apr 2025). Six modules: AI Model Security (model file scanning), AI Red Teaming (500+ attack scenarios), AI Runtime Security (Network Intercept + API Intercept), AI Posture Management (shadow AI discovery), Agent Security (RBAC + MCP security), AI Gateway. Gartner 'Company to Beat'. Not a UGC moderation tool.",
+    cat: ["Policy & compliance", "Content moderation", "Fraud & identity", "Pre-generation security"], shape: "Broader platform", pricing: "Quote only", industry: "Cybersecurity",
+    specialty: "N/A", policy: "Policy-based", spec: "Generalized", vert: "Horizontal",
+    text: "Yes", image: "No", video: "No", audio: "No", code: "Yes", ling: "No", behav: "No",
+    adapt: "Static/pretrained", mech: ["Hybrid", "ML classifier", "LLM-based"], phil: "Classifying",
+    network: "Siloed", life: ["Preventive", "Pre-publish"], custom: "Policy-configurable", pdf: "No" }
+];
+
+/* =====================================================================
+   LOGIC
+   ===================================================================== */
+// Normalise: every field value becomes an array
+COMPANIES.forEach(c => FIELDS.forEach(f => {
+  const v = c[f.key];
+  c[f.key] = v == null ? [] : Array.isArray(v) ? v : [v];
+}));
+
+const selections = {};   // key -> selected value
+let topN = 5;
+
+function companyHas(c, f, val) {
+  const vals = c[f.key];
+  if (vals.includes(val)) return true;
+  const imp = f.implies || {};
+  return vals.some(v => (imp[v] || []).includes(val));
+}
+function optLabel(f, v) {
+  const o = f.options.find(o => o.v === v);
+  return o ? (o.l || o.v) : v;
+}
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+}
+
+// ---------- Build the filter form ----------
+function buildForm() {
+  const form = document.getElementById("filter-form");
+  let html = "", lastGroup = null, detectsOpen = false;
+
+  FIELDS.forEach(f => {
+    if (f.group !== lastGroup) {
+      if (detectsOpen) { html += "</div>"; detectsOpen = false; }
+      html += `<div class="group-title">${esc(f.group)}</div>`;
+      lastGroup = f.group;
+    }
+    const opts = f.options.map(o => {
+      const n = COMPANIES.filter(c => companyHas(c, f, o.v)).length;
+      return `<option value="${esc(o.v)}">${esc(o.l || o.v)} (${n})</option>`;
+    }).join("");
+    const select = `<select id="sel-${f.key}" data-key="${f.key}"><option value="">— Any (not scored) —</option>${opts}</select>`;
+
+    if (f.detects) {
+      if (!detectsOpen) {
+        html += `<div class="field">
+          <div class="field-head"><label>Detects (content types)</label>${infoBtn("detects")}</div>
+          ${infoPanel("detects", DETECTS_WHAT, YPN)}</div><div class="detects-grid">`;
+        detectsOpen = true;
+      }
+      html += `<div class="field"><div class="field-head"><label for="sel-${f.key}">${esc(f.label)}</label></div>${select}</div>`;
+      return;
+    }
+    if (detectsOpen) { html += "</div>"; detectsOpen = false; }
+    html += `<div class="field">
+      <div class="field-head"><label for="sel-${f.key}">${esc(f.label)}</label>${infoBtn(f.key)}</div>
+      ${infoPanel(f.key, f.what, f.options)}
+      ${select}</div>`;
+  });
+  if (detectsOpen) html += "</div>";
+  form.innerHTML = html;
+
+  form.querySelectorAll("select").forEach(s => s.addEventListener("change", e => {
+    const k = e.target.dataset.key;
+    if (e.target.value) selections[k] = e.target.value; else delete selections[k];
+    e.target.classList.toggle("set", !!e.target.value);
+    render();
+  }));
+  form.querySelectorAll(".info-btn").forEach(b => b.addEventListener("click", () => {
+    const panel = document.getElementById("info-" + b.dataset.for);
+    const open = panel.classList.toggle("open");
+    b.setAttribute("aria-expanded", open);
+  }));
+}
+function infoBtn(id) {
+  return `<button type="button" class="info-btn" data-for="${id}" aria-expanded="false" title="What does this mean?">i</button>`;
+}
+function infoPanel(id, what, options) {
+  const items = options.map(o => `<li><b>${esc(o.l || o.v)}</b>${o.d ? " — " + esc(o.d) : ""}</li>`).join("");
+  return `<div class="info" id="info-${id}"><div><b>What it means:</b> ${esc(what)}</div>
+    <div style="margin-top:6px"><b>Suggested values:</b></div><ul>${items}</ul></div>`;
+}
+
+// ---------- Scoring & results ----------
+function render() {
+  const out = document.getElementById("results");
+  const active = FIELDS.filter(f => selections[f.key]);
+  const total = active.length;
+
+  if (!total) {
+    out.innerHTML = `<div class="banner empty">Choose at least one requirement on the left to rank vendors.<br>
+      Leave anything you don't care about blank; blank fields aren't scored.</div>`;
+    return;
+  }
+
+  const scored = COMPANIES.map(c => {
+    const checks = active.map(f => ({ f, want: selections[f.key], hit: companyHas(c, f, selections[f.key]) }));
+    return { c, checks, score: checks.filter(x => x.hit).length };
+  }).sort((a, b) => b.score - a.score || a.c.name.localeCompare(b.c.name));
+
+  const perfect = scored.filter(s => s.score === total);
+  let banner;
+  if (perfect.length === 1) {
+    banner = `<div class="banner ok"><b>1 vendor matches all ${total} requirement${total > 1 ? "s" : ""}.</b> It's ranked first, followed by the next closest matches.</div>`;
+  } else if (perfect.length > 1) {
+    banner = `<div class="banner ok"><b>${perfect.length} vendors match all ${total} requirement${total > 1 ? "s" : ""}.</b> Add more requirements to narrow the list down.</div>`;
+  } else {
+    banner = `<div class="banner warn"><b>No vendor matches all ${total} requirements.</b> The best score is ${scored[0].score}/${total}. These are the closest matches:</div>`;
+  }
+
+  const shown = scored.slice(0, topN);
+  const cutoff = shown[shown.length - 1].score;
+  const tiedExtra = scored.slice(topN).filter(s => s.score === cutoff && cutoff > 0);
+
+  let html = banner;
+  let rank = 0, prevScore = null;
+  shown.forEach((s, i) => {
+    if (s.score !== prevScore) { rank = i + 1; prevScore = s.score; }
+    html += card(s, rank, total);
+  });
+  if (tiedExtra.length) {
+    html += `<div class="tied">Also tied at ${cutoff}/${total}: ${tiedExtra.map(s => esc(s.c.name)).join(", ")}</div>`;
+  }
+  out.innerHTML = html;
+}
+
+function card(s, rank, total) {
+  const { c, checks, score } = s;
+  const pct = Math.round(score / total * 100);
+  const chips = checks.map(x => {
+    const want = esc(optLabel(x.f, x.want));
+    if (x.hit) return `<span class="chip hit">✓ ${esc(x.f.label)}: ${want}</span>`;
+    const has = c[x.f.key].length ? c[x.f.key].map(v => optLabel(x.f, v)).join(", ") : "not disclosed";
+    return `<span class="chip miss" title="This vendor: ${esc(has)}">✗ ${esc(x.f.label)}: ${want} (is: ${esc(has)})</span>`;
+  }).join("");
+  const rows = FIELDS.map(f => `<tr><td>${esc(f.detects ? "Detects: " + f.label : f.label)}</td>
+      <td>${c[f.key].length ? esc(c[f.key].map(v => optLabel(f, v)).join(", ")) : "—"}</td></tr>`).join("");
+
+  return `<div class="card">
+    <div class="card-head">
+      <div class="rank">${rank}</div>
+      <div class="card-title">
+        <h3>${esc(c.name)}<span class="section-tag">${esc(c.section)}</span></h3>
+        <a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.url)}</a>
+      </div>
+      <div class="score"><b>${score}/${total}</b><small>${pct}% match</small>
+        <div class="bar"><span style="width:${pct}%"></span></div></div>
+    </div>
+    <p class="summary">${esc(c.summary)}</p>
+    <div class="chips">${chips}</div>
+    <details><summary>Full profile</summary><table class="profile">${rows}</table></details>
+  </div>`;
+}
+
+// ---------- Wiring ----------
+document.getElementById("reset").addEventListener("click", () => {
+  Object.keys(selections).forEach(k => delete selections[k]);
+  document.querySelectorAll("#filter-form select").forEach(s => { s.value = ""; s.classList.remove("set"); });
+  render();
+});
+document.querySelectorAll("#topn button").forEach(b => b.addEventListener("click", () => {
+  topN = +b.dataset.n;
+  document.querySelectorAll("#topn button").forEach(x => x.classList.toggle("on", x === b));
+  render();
+}));
+
+buildForm();
+render();
+</script>
+</body>
+</html>
